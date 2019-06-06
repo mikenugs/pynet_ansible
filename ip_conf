@@ -1,0 +1,43 @@
+
+!Here we are configuring an IP interface on an NX-OS device. Since each IP address is unique you need to add the variable for the IP address in the host_vars directory.
+
+
+---
+- name: NXOS Example
+  hosts: nxos
+  tasks:
+    - name: Configure NEXUS VLANs
+      nxos_vlan:
+        provider: "{{ provider_nxapi }}"
+        vlan_id: "{{ item.vlan_id }}"
+        admin_state: "{{ item.admin_state }}"
+        name: "{{ item.name }}"
+      with_items: "{{ vlans }}"
+      notify: write mem
+
+    - nxos_ip_interface:
+        provider: "{{ provider_nxapi }}"
+        interface: Ethernet2/1
+        version: v4
+        addr: "{{ ip_addr }}"
+        mask: 24
+      notify: write mem
+      tags: ip_int
+
+  handlers:
+    - name: write mem
+      nxos_command:
+        provider: "{{ provider_ssh }}"
+        commands: copy run start
+      changed_when: True
+      tags: wr_mem
+
+!/host_vars/nxos1/ip_addresses.yml
+
+---
+ip_addr: 10.10.10.1
+
+!/host_vars/nxos2/ip_addresses.yml
+
+---
+ip_addr: 10.10.10.2

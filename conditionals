@@ -1,0 +1,43 @@
+Conditionals are statements like if, elif else constructs that you see in programming languages. 
+
+
+---
+- name: When Testing
+  hosts: local
+  vars:
+    my_str: whatever
+
+  tasks:
+    - name: Hard-coded to False
+      debug:
+        msg: Hello World is False
+      when: False
+
+    - name: Hard-coded to True
+      debug:
+        msg: Hello World is True
+      when: True
+
+    - name: Testing string equality
+      debug:
+        msg: whatever
+      when: my_str != 'whatever' <-- This will skip this task since it is saying that when my_str is not equal to whatever. 
+
+    - name: Substring in larger string
+      debug:
+        msg: This is Cisco IOS
+      when: "'Cisco IOS' in version" <-- Here we have to enclose a substring in the string using different quatation marks. We need to do this because if we did not Ansible would think it was one long string. 
+
+    - name: This variable is defined
+      debug:
+        msg: Variable defined <-- This will print when the version is defined
+      when: version is defined
+
+    - command: /bin/false <-- This command will fail and force the Playbook to end
+      register: result
+      ignore_errors: True <-- By setting this to true we ignore the error and allow the playbook to run
+
+    # The previous form using a filter was deprecated
+    - debug:
+        msg: "Hello world"
+      when: result is failed <-- Since the last command failed and saved this in result this play will be true and print hello world

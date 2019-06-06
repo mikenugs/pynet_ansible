@@ -1,0 +1,41 @@
+The inventory file is used to store variables for the hosts you are trying to connect to.
+By default Ansible will look in /etc/ansible/hosts to find this information. 
+
+You can overwrite where Ansible looks for the inventory by modifying .ansible.cfg and
+changing 'hostfile =' to the location you want ansible to use to look for the inventory file.
+
+[all:vars]  <-- the all group applies to all entries
+ansible_connection=local
+# !!! You will need to update this to your Python !!!
+ansible_python_interpreter=/home/kbyers/VENV/ansible/bin/python <-- you can specify the version of Python you want in the case that you want to ensure that it runs a version that has all of the appropriate Python libraries for Ansible
+
+[local]
+localhost ansible_connection=local  <-- this will tell it not to SSH to the remote device but yet rather execute the code locally
+
+[cisco]
+pynet-rtr1 ansible_host=184.105.247.70
+pynet-rtr2 ansible_host=184.105.247.71 
+
+[cisco:vars]  <-- these vars will apply to all members in the Cisco group
+ansible_user=pyclass
+ansible_ssh_pass="[THIS PASSWORD NEEDS TO BE CHANGED]"
+
+[arista]
+pynet-sw1 ansible_host=184.105.247.72
+pynet-sw2 ansible_host=184.105.247.73
+pynet-sw3 ansible_host=184.105.247.74
+pynet-sw4 ansible_host=184.105.247.75
+
+[arista:vars]
+ansible_user=pyclass
+ansible_ssh_pass="[THIS PASSWORD NEEDS TO BE CHANGED]"
+
+!Debug can be used to print out variables. 
+
+---
+- name: Print out variables
+  hosts: cisco:arista <-- this will look in both Cisco and Arista group. You can also use a : and just a single hostname as well if you want to just add 1 more device
+  tasks:
+    - debug:
+        msg: "{{ ansible_host }}" <-- when referencing a variable you put it within qoutes and use Jinja2 brackets around it. This way Ansible knows you are not just specifying a key value
+

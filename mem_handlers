@@ -1,0 +1,29 @@
+!When you need to save the running configuration to the startup configuration after making a
+configuration change you can use Handlers. The way handlers work is if the task results in a change
+and you specify a handler then the handler will be fired off. If there are no changes then 
+the handler will never be fired off. 
+
+---
+- name: NXOS Example
+  hosts: nxos
+  tasks:
+    - name: Configure NEXUS VLANs
+      nxos_vlan:
+        provider: "{{ provider_nxapi }}"
+        vlan_id: "{{ item.vlan_id }}"
+        admin_state: "{{ item.admin_state }}"
+        name: "{{ item.name }}"
+      with_items: "{{ vlans }}"
+      notify: write mem <-- The identifier string write mem matches the name of the handler
+
+  handlers:
+    - name: write mem
+      nxos_command:
+        provider: "{{ provider_ssh }}"
+        commands: copy run start
+      changed_when: True <-- This Playbook does not flag a change when it is run. You can set this if you want it to show changed
+      tags: wr_mem
+
+!You can also use handlers when working with linux in situations where you modify a config
+file such as apache and then use ntofy a handler to restart the service in the case a change
+was made.

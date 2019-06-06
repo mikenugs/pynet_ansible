@@ -1,0 +1,157 @@
+!Before configuring a device it is a good idea to confirm that you have basic connectivity to it.
+Below we have a playbook that connects to Nexus devices both via SSH and NXAPI and gathers facts.
+
+---
+- name: NXOS Example
+  hosts: nxos
+  vars:
+    ssh:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      transport: cli
+
+    nxapi:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      transport: nxapi
+      use_ssl: yes
+      validate_certs: no
+      port: 8443
+
+  tasks:
+    - nxos_facts:
+        provider: "{{ ssh }}"
+
+    - nxos_facts:
+        provider: "{{ nxapi }}"
+
+!Here we have an example of using the NXOS Vlan module to configure Vlans
+
+---
+- name: NXOS Example
+  hosts: nxos
+  vars:
+    ssh:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      transport: cli
+
+    nxapi:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      transport: nxapi
+      use_ssl: yes
+      validate_certs: no
+      port: 8443
+
+  tasks:
+    - name: Configure NEXUS VLANs
+      nxos_vlan:
+        provider: "{{ nxapi }}"
+        vlan_id: 550
+        admin_state: up
+        name: BLACK
+
+!If we want to create multiple vlans we can create the vlans: data structure and modify taks like below
+
+    vlans:
+      - vlan_id: 550
+        admin_state: up
+        name: BLACK
+      - vlan_id: 551
+        admin_state: up
+        name: ORANGE
+      - vlan_id: 552
+        admin_state: up
+        name: PINK
+
+  tasks:
+    - name: Configure NEXUS VLANs
+      nxos_vlan:
+        provider: "{{ nxapi }}"
+        vlan_id: "{{ item.vlan_id }}"
+        admin_state: "{{ item.admin_state }}"
+        name: "{{ item.name }}"
+      with_items: "{{ vlans }}"
+
+!You can also move your connectivity variables to the group_vars directory since these
+will be shared by multiple devices that will connect via your playbook. This way you can
+clean up your playbook. We will also move vlans into group_vars as well and rename it
+vlans_common
+
+!group_vars/nxos.yml
+
+---
+provider_ssh:
+  host: "{{ ansible_host }}"
+  username: "{{ ansible_user }}"
+  password: "{{ ansible_ssh_pass }}"
+  transport: cli 
+
+provider_nxapi:
+  host: "{{ ansible_host }}"
+  username: "{{ ansible_user }}"
+  password: "{{ ansible_ssh_pass }}"
+  transport: nxapi
+  use_ssl: yes 
+  validate_certs: no
+  port: 8443
+
+vlans_common:
+  - vlan_id: 550 
+    admin_state: up
+    name: BLACK
+  - vlan_id: 551 
+    admin_state: up
+    name: ORANGE
+  - vlan_id: 552 
+    admin_state: up
+    name: PINK
+
+vlans: "{{ vlans_common }} + {{ vlans_unique|default([]) }}" <-- here we concatniate
+the vlans_common list and vlans_unique. You can just use
+
+vlans: "{{ vlans_common }} + {{ vlans_unique }}"
+
+We add the |default([]) }}" to the end in the case where we have a device that
+will not have vlans_unique. In those cases it will fail if we dont add this command.        
+
+!We may have a situation where the above common vlans are on all devices but
+we will have some unique vlans on devices as well. When we run into that situation
+we can create a host_vars directory for the device and add the variables there.
+
+!/host_vars/nxos1/vlans.yml
+
+---
+vlans_unique:
+  - vlan_id: 559
+    admin_state: up
+    name: BROWN
+
+!/host_vars/nxos2/vlans.yml
+
+---
+vlans_unique:
+  - vlan_id: 560
+    admin_state: up
+    name: GRAY
+
+
+!Here is how the playbook is written with all of the variables and provider
+information moved to group/host_vars
+
+---
+- name: NXOS Example
+  hosts: nxos
+  tasks:
+    - name: Configure NEXUS VLANs
+      nxos_vlan:
+        provider: "{{ provider_nxapi }}"
+        vlan_id: "{{ item.vlan_id }}"
+        admin_state: "{{ item.admin_state }}"
+        name: "{{ item.name }}"
+      with_items: "{{ vlans }}"

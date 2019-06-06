@@ -1,0 +1,95 @@
+YAML and JSON are data structures that can be used to communicate between machines. When
+you do this you are converting your data structure to a byte stream or in other words
+serializing the data. These data structures are human readible. 
+
+When writing YAML you typically add three hyphones to the top but this is not mandatory
+
+---
+
+- apple <- to write a list or an array you add one hyphone then a string, integer or some type of bolean
+- orange <- This would be list element 1 and apple would be 0
+- peach <- This would be list element 2
+
+There should be no space for the list hyphen and the begining. Then one space before the element
+
+
+Here we add to our list with different element data types
+---
+
+- apple pie <-- you do not need to put a hyphen around your strings Python will do that for you when converted
+- orange
+- banana
+- peach
+- 10
+- 11.0
+- true
+- no
+- off
+
+!This python program will read in the YAML and convert it to Python data types
+
+import yaml
+
+def read_yaml(filename):
+    with open(filename) as f:
+        return yaml.safe_load(f)
+
+def write_yaml(filename, output, style=None):
+    with open(filename, "wt") as f:
+        if style=="compressed":
+            yaml.dump(output, f, default_flow_style=True)
+        else:
+yaml.dump(output, f, default_flow_style=False)
+
+!To create a dictionary or what is known as a Hash Map in other programming languages
+
+---
+
+key1: value1 <-- there is a space between the key and value
+key2: value2
+key3: value3
+
+
+!Below we have a list of dictionaries
+
+---
+
+# This is a commment
+- ip_addr: 10.10.10.1
+  username: admin
+  password: whatever
+  device_type: cisco_ios
+- ip_addr: 10.10.10.2
+  username: admin
+  password: whatever
+  device_type: juniper_srx
+
+!Below we have a dictionary key my_list with a value which comprises of a list of varying data types
+Note that we indent the list so it shows that it belongs to the key my_list
+
+---
+
+ip_addr: 10.10.10.1
+username: admin
+password: whatever
+device_type: cisco_ios
+my_list:
+  - some value
+  - 10
+  - true
+  - false
+  - whatever
+
+!You can also write a dictionary in compressed format, note that you do not need to qoute the values in the strings
+
+---
+
+# Showing YAML in compressed form
+{ key1: value1, key2: value2, key3: value3 }
+
+!Here is a list in compressed format again no qoutes on the strings
+
+---
+
+# Showing YAML in compressed form
+[ whatever, 10, 10.1, false, true, some string ]

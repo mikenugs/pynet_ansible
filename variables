@@ -1,0 +1,46 @@
+!Variables can also be specified within the playbook by creating a vars key.
+
+---
+- name: Print out variables
+  hosts: cisco
+  vars:
+    dns1: 8.8.8.8
+    dns2: 8.8.4.4
+  tasks:
+    - debug:
+        msg: "{{ dns1 }}"
+    - debug:
+        msg: "{{ dns2 }}"
+
+
+!You can also specify a file that has variables as well using vars_files. Note
+that when you specify the filename Ansible wants it input as a list
+
+---
+- name: Print out variables
+  hosts: cisco
+  vars:
+    dns1: 8.8.8.8
+    dns2: 8.8.4.4
+  vars_files:
+    - my_vars.yml <-- must be input as a list
+  tasks:
+    - debug:
+        msg: "{{ ip_addr1 }}"
+
+!my_vars.yml
+---
+ip_addr1: 10.10.10.1
+
+!Ansible also has facts that it gathers from a device. They can be seen via
+the setup module. After running the setup module to see all of the gathered facts
+you can print out individual facts by specifying the variable name.
+
+  tasks:
+    - debug:
+        msg: "{{ ansible_all_ipv6_addresses }}"
+
+!If you want to gather facts from a newworking device you will need to do something
+special because by default we run connection local with networking devices.
+
+

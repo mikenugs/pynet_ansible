@@ -1,0 +1,45 @@
+!By using with dict you can iterate over a dictionary in Python. 
+
+---
+- name: With Testing
+  hosts: local
+  vars:
+    my_devices:
+      device1:
+        ip_addr: 10.10.10.1
+        device_type: cisco_ios
+      device2:
+        ip_addr: 10.10.20.1
+        device_type: cisco_ios
+      device3:
+        ip_addr: 10.10.30.1
+        device_type: juniper_junos
+  tasks:
+    - name: Test with_dict
+      debug:
+        msg: "{{ item }}" <-- This will print out the dictionary that will be placed in item as it iterates through with_dict. The item contains both the key/value pairs and will be the entire dictionary.
+      with_dict: "{{ my_devices }}" <-- you specify with_dict to iterate through a dictionary and my_devices is the dictionary name that is defined under vars:
+
+!If you want to match on just the key you can try to specify item.key like below.
+
+  tasks:
+    - name: Test with_dict
+      debug:
+        msg: "{{ item.key }}"
+      with_dict: "{{ my_devices }}"
+
+!You can also match just the values as well stripping out the keys when iterating through the dictionary like below.
+
+  tasks:
+    - name: Test with_dict
+      debug:
+        msg: "{{ item.value }}"
+      with_dict: "{{ my_devices }}"
+
+!If we want to reference an indivual variable inside the dictionary such as the ip_addr variable within the dictionary when we iterate through.
+
+  tasks:
+    - name: Test with_dict
+      debug:
+        msg: "{{ item.value.ip_addr }}"
+      with_dict: "{{ my_devices }}"

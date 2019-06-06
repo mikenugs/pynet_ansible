@@ -1,0 +1,50 @@
+
+!Arista modules support both an eAPI connection and an SSH connection. 
+
+---
+- name: EOS Example
+  hosts: pynet-sw5
+  vars:
+    ssh:
+      host: "{{ ansible_host }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      transport: cli <-- tells Ansible to use SSH instead of eAPI
+      timeout: 60  <-- to prevent the playbook from timing out in the event of slow response from the Arista VM
+
+  tasks:
+    # Had to remove interfaces as eos_facts would fail on LLDP
+    - eos_facts:
+        provider: "{{ ssh }}"
+        gather_subset:
+          - "!interfaces"
+
+!In this example we use eAPI to connect instead of SSH
+
+---
+- name: EOS Example
+  hosts: pynet-sw5
+  vars:
+    eapi:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      transport: eapi  <-- Here we specify eAPI instead of SSH
+      use_ssl: True
+      validate_certs: no   <-- Here we set validate certs to no
+
+  tasks:
+    - eos_facts:
+        provider: "{{ eapi }}"
+
+ !Here we add a task to run the show arp command
+
+    - name: Execute Show Command
+      eos_command:
+        provider: "{{ eapi }}"
+        commands: show arp
+      tags: show_cmd
+      register: output
+
+    - debug:
+        var: output

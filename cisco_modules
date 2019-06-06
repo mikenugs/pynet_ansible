@@ -1,0 +1,90 @@
+!Exampe simple Cisco playbook where we gather facts
+
+---
+- name: IOS Example
+  hosts: pynet-rtr1
+  vars:
+    creds:
+      host: 184.105.247.70
+      username: pyclass
+      password: "[THIS PASSWORD NEEDS TO BE CHANGED]"
+  tasks:
+    - ios_facts:
+        provider: "{{ creds }}" <-- networking modules will often use provider to specify login credentials. You can add these credentials under vars as we did with the creds variable.
+
+
+!In the case that we want to run this playbook on multiple devices
+
+---
+- name: IOS Example
+  hosts: cisco <-- here we specify Cisco group instead of just one host
+  vars:
+    creds:
+      host: "{{ ansible_host }}" <-- we change this to ansible_host oulled from inventory
+      username: "{{ ansible_user }}" <-- we change this to ansible user pulled from inventory
+      password: "{{ ansible_ssh_pass }}" <-- we change this to ansible password pulled from inventory
+  tasks:
+    - ios_facts:
+      provider: "{{ creds }}"
+
+
+ !Since we are working with the Ansible get_facts module for IOS we can specify any of the facts that we want to prent like below
+
+ ---
+- name: IOS Example
+  hosts: cisco
+  vars:
+    creds:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+  tasks:
+    - ios_facts:
+        provider: "{{ creds }}"
+
+    - debug:
+        var: ansible_net_model <-- Here is the key value for the fact that we want to match upon
+
+When running a playbook you can also specify --limit so it will run the playbook on a subset of devices
+
+ansible-playbook ios_example.yml -i ./ansible-hosts --limit pynetrtr-1
+
+!You can also just run a subset of plays in a playbook using tags
+
+---
+- name: IOS Example
+  hosts: cisco
+  vars:
+    creds:
+      host: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+  tasks:
+    - ios_facts:
+        provider: "{{ creds }}"
+      tags: facts_only <-- a tag is added to the play
+
+    - debug:
+        var: ansible_net_model
+
+ansible-playbook ios_example.yml -i ./ansible-hosts --tags facts_only <-- you specify the command in the playbook run
+
+!Here we can add a task to perform a show ip int brief on an IOS device. We also want to save the output.
+
+    - ios_command:
+        provider: "{{ creds }}"
+        commands: show ip int brief
+       register: output <-- register is not related to the ios_command module so it is not indented with the attributes of that module. 
+
+    - debug:
+        msg: "{{ output.stdout_lines }}"     <-- You can print out just output which will give you a dictionary. Here we choose to print the value stdout_lines from output which shows the interfaces. You can also write this in stadard Python format   "{{ output['stdout_lines'] }}" 
+
+!You can also get rid of the outermost list wrapping by specifying the list indicey
+
+    - debug:
+        msg: "{{ output.stdout_lines[0] }}"
+
+!Here we specify exactly which interface we want to print out in the list
+
+    - debug:
+        msg: "{{ output.stdout_lines[0][5] }}"

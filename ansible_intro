@@ -1,0 +1,43 @@
+Automation is needed so we can get out of doing repitive tasks that can be error prone.
+This eliminates a lot of time consuming wasteful activities. 
+
+The biggest advantage to Ansible over other applications such as Salt, Chef and Puppet
+is that it has been embraced by the networking comminity meaining that code and modules
+will be more readily availble in comparison. 
+
+Also Ansible scripts are written in YAML making it relatively easy to write playbooks.
+
+Ansible is programming with a programming language but it is fairly leightweight programming
+in comparison to Python and Ruby. In sime cases you can use Ansible in a way that it is
+not intended like using a hammer where a screwdriver is needed. This would be the case
+when you are in a situation where you need lots of flow control like conditionals or
+looping constructs. 
+
+
+
+!Ansible scripts are written in YAML and are called playbooks. These playbooks are 
+made up of plays. The plays have a hyphon and name - name so it is a list. The name
+is just an identifier and is a message that is presented to the screen. 
+
+---
+
+- name: Ping pynet-rtr1
+  hosts: pynet-rtr1
+  tasks:
+   - ping: <-- Here is the module that we are using with the play
+
+- name: Ping pynet-rtr2
+  hosts: pynet-rtr2
+  tasks:
+- ping:
+
+Ansible was designed to ship Python modules to remote machines via SSH and run the module on the
+remote machine. With networking equipment we set the connection to local so the Python module
+is run on the controller and then the controller executes the commands on the remote device. 
+
+Ansible playbooks is written in YAML and it consists of plays which will have taks. It needs to
+specify hosts. 
+
+Ansible uses itempotency so it will check to see if the action is done prior
+to executing a play. If it is done then it will not execute the play. If it is
+not then it will execute the play.

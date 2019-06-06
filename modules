@@ -1,0 +1,54 @@
+
+!Running the below playbook example
+
+ansible-playbook my_modules.yml -i ./ansible-hosts -v
+
+!Inventory File example
+
+[all:vars]
+ansible_connection=local
+# !!! You will need to update this to your Python !!!
+ansible_python_interpreter=/home/kbyers/VENV/ansible/bin/python
+
+[local]
+localhost ansible_connection=local
+
+[servers]
+pylab10b.twb-tech.com
+
+[servers:vars]
+ansible_connection=smart   <--- This will use SSH to transport module to remote box
+# !!! You will need to update this to your Python !!!
+ansible_python_interpreter=/home/kbyers/VENV/ansible/bin/python <-- This specifies the version of Python to use on the remote machine
+
+!Playbook example
+
+---
+- name: Simple Playbook
+  hosts: local
+  tasks:
+    - ping:
+
+
+!Here we have a playbook that uses the PIP module to install the Netmiko package
+
+---
+- name: Simple Playbook
+  hosts: servers
+  tasks:
+    - ping:
+
+    - debug:
+        msg: Hello World
+
+    - name: Install Netmiko
+      pip: 
+        name: netmiko
+        virtualenv: /home/kbyers/applied_python <-- Installs Netmiko in this virtual environment
+        version: 1.2.8
+
+!If you are using a module that was not in the Ansible module path you can specify how Ansible can find the module.
+
+ansible-playbook my_modules.yml -i ./ansible-hosts -M /path/to/module
+
+!You can also update ~/.ansible.cfg and where it says library = you can add :~/path/to/mod/

@@ -1,0 +1,39 @@
+Instead of putting all of your variables in the inventory file you can
+choose to store some in the group_vars and host_vars directory. The group_vars
+and host_vars directory need to be relative to where the Ansible host file is
+located.
+
+!You will need to create a file in group_vars that matches your device names
+such as creating a cisco.yml to match the cisco group in your inventory file
+. You use yml to specify the variables
+
+---
+ntp1: 88.1.2.77
+ntp2: 88.1.9.33
+
+!Here we have a playbook that prints out those variables in group_vars
+
+---
+- name: Print out variables
+  hosts: cisco
+  tasks:
+    - debug:
+        msg: "{{ ntp1 }}"
+    - debug:
+        msg: "{{ ntp2 }}"
+
+!You can also match specify hosts by creating a host_vars directory relative
+to the inventory file.
+
+If you have for example a host in your cisco group called pynet-rtr1 you
+would make the directories /host_vars/pynet-rtr1/ and then add a file called
+my_vars.yml for your variables
+
+!Here we add the AS number to the file my_vars.yml
+
+as_number: 10
+
+!The group variables apply to all members in the group and the host variables
+apply only to the hosts
+
+
