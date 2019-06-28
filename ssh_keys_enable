@@ -1,0 +1,35 @@
+!When using an SSH key to access IOS devices you can specify where the key file is located.
+
+---
+- name: IOS Example
+  hosts: pynet-rtr1
+  vars:
+    creds:
+      host: "{{ ansible_host }}"
+      username: testuser
+      ssh_keyfile:  ~/.ssh/test_rsa
+
+  tasks:
+    - ios_facts:
+      provider: "{{ creds }}"
+
+!When you need to use enable secret by using the authorize: and setting it to True and then setting a corresponding auth_pass
+
+---
+- name: IOS Example
+  hosts: pynet-rtr1
+  vars:
+    creds:
+      host: "{{ ansible_host }}"
+      username: test1
+      password: "{{ password }}"
+      authorize: True
+      auth_pass: "{{ password }}"
+
+  tasks:
+    - ios_facts:
+        provider: "{{ creds }}"
+
+    - ios_command:
+        provider: "{{ creds }}"
+        commands: show run

@@ -1,0 +1,119 @@
+!The IOS Config module can be used to configure devices. In this example we set our variables in the directory group_vars
+
+---
+- name: IOS Example
+  hosts: pynet-rtr1
+  vars:
+    creds:
+      host: "{{ ansible_host }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+
+  tasks:
+    - ios_facts:
+        provider: "{{ creds }}"
+      tags: facts_only
+
+    - ios_config:
+        provider: "{{ creds }}"
+        lines: 
+          - "ip domain name {{ default_domain }}"
+          - "ip name-server {{ name_server1 }}"
+          - "ip name-server {{ name_server2 }}"
+          - "ntp server {{ ntp1 }}"
+          - "ntp server {{ ntp2 }}"
+
+
+/group_vars/all.yml
+
+---
+name_server1: 8.8.8.8
+name_server2: 8.8.3.3
+
+default_domain: bogus.com
+
+ntp1: 130.126.24.24
+ntp2: 152.2.21.1
+
+!To provide the username and password via the command line you can leave the username and password out of the variables you specified for provider like below. This will fail on its own so from the command line you specify the username/password combo
+
+ansible-playbook ios_config.yml -i ./ansible-hosts -u pyclass -k
+
+---
+- name: IOS Example
+  hosts: pynet-rtr1
+  vars:
+    creds:
+      host: "{{ ansible_host }}"
+
+  tasks:
+    - ios_config:
+        provider: "{{ creds }}"
+        lines: 
+          - "ip domain name {{ default_domain }}"
+          - "ip name-server {{ name_server1 }}"
+          - "ip name-server {{ name_server2 }}"
+          - "ntp server {{ ntp1 }}"
+          - "ntp server {{ ntp2 }}"
+
+!You can also use Ansible Vault to encrypt the username/password information
+
+!Instead of specifying each line of configuration you can also point your config to a source file like below. The files it is pushing can be jinja2.
+
+---
+- name: IOS Example
+  hosts: pynet-rtr1
+  vars:
+    creds:
+      host: "{{ ansible_host }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+
+  tasks:
+    - ios_config:
+        provider: "{{ creds }}"
+        src: my_config2a.txt
+        backup: yes  <-- this creates a copy of the configuration before any changes are done and copys it over to the local backup directory
+
+
+!Here is the file being pushed 
+
+/my_config2b.txt
+
+ip domain name {{ default_domain }}
+{% for ns in [name_server1, name_server2] %}
+ip name-server {{ ns }}
+{% endfor %}
+ntp server {{ ntp1 }}
+ntp server {{ ntp2 }}
+
+!You can use the IOS config module to handle complex hierchical changes as well. The parent line below forces the permit ip host commands to be placed under the ip access-list... hierarchy. The before statement specifies that if a change has to be made then execute the before command else disregard. In our example we wipe out the ACL. The match: line tells Ansible that the order of the permit ip commands does not matter and as long as those statements are within the correct hierarchy you are good. So it will not try and re-apply if it is not in the correct order as long as everything is there. You can change it to match: exact if you want the order to matter. In other words making sure the subset/superset matter. You can set replace to line and if you are missing a single line in the ACL it will only add that line. If you set replace: block it will remove everything and readd the entire config. It is recommended to use replace: block which will readd everything when any part of the ACL is not setup correctly. 
+
+---
+
+- name: Configure an ACL
+  gather_facts: no
+  hosts: pynet-rtr1
+  vars:
+    creds:
+      host: "{{ ansible_host }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+
+  tasks:
+    - name: Configure ACL
+      ios_config:
+        provider: "{{ creds }}"
+        parents: ["ip access-list extended TEST-ACL"]
+        lines: 
+          - permit ip host 1.1.1.1 any log
+          - permit ip host 2.2.2.2 any log
+          - permit ip host 3.3.3.3 any log
+          - permit ip host 4.4.4.4 any log
+        before: ["no ip access-list extended TEST-ACL"]
+        replace: block
+        match: line
+
+
+!You may run into an issue where you want to make sure that a config you are pushing such as name-servers adds just the name servers in question and removes any that are already configured. In the above example if you had name-servers for 4.4.4.4 configured for example then that will remain in place and you will add 8.8.8.8 and 8.8.3.3. 
+

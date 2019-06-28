@@ -1,0 +1,179 @@
+!Initial Playbook
+
+---
+- name: IOS Config Change
+  hosts: pynet-rtr1
+  tasks:
+    - ios_config:
+        provider: "{{ creds_ssh }}"
+        lines: 
+          - "ip domain name {{ default_domain }}"
+          - "ip name-server {{ name_server1 }}"
+          - "ip name-server {{ name_server2 }}"
+          - "ntp server {{ ntp1 }}"
+          - "ntp server {{ ntp2 }}"
+
+- name: EOS Config Change
+  hosts: pynet-sw5
+  tasks:
+    - eos_config:
+        provider: "{{ creds_eapi }}"
+        lines: 
+          - "ip domain-name {{ default_domain }}"
+          - "ip name-server vrf default {{ name_server1 }}"
+          - "ip name-server vrf default {{ name_server2 }}"
+          - "ntp server {{ ntp1 }}"
+          - "ntp server {{ ntp2 }}"
+
+- name: NXOS Config Change
+  hosts: nxos1
+  tasks:
+    - nxos_config:
+        provider: "{{ creds_nxapi }}"
+        lines: 
+          - "ip domain-name {{ default_domain }}"
+          - "ip name-server {{ name_server1 }} {{ name_server2 }}"
+          - "ntp server {{ ntp1 }}"
+          - "ntp server {{ ntp2 }}"
+        tags: nxos
+
+
+!It is considered best practice to put the config lines in the vars directory and reference them via your playbook like below.
+
+---
+- name: IOS Config Change
+  hosts: cisco
+  gather_facts: False
+  tasks:
+    - ios_config:
+        provider: "{{ creds_ssh }}"
+        lines: "{{ global_config }}"
+
+- name: EOS Config Change
+  hosts: arista
+  gather_facts: False
+  tasks:
+    - eos_config:
+        provider: "{{ creds_eapi }}"
+        lines: "{{ global_config }}"
+
+- name: NXOS Config Change
+  hosts: nxos
+  gather_facts: False
+  tasks:
+    - nxos_config:
+        provider: "{{ creds_nxapi }}"
+        lines: "{{ global_config }}"
+
+!We define our spefic variables for all device types in all.yml in group_vars
+
+/group_vars/all.yml
+
+---
+name_server1: 8.8.8.8
+name_server2: 8.8.4.4
+
+default_domain: bogus1.com
+
+ntp1: 130.126.24.24
+ntp2: 152.2.21.1
+
+
+!Group vars for Cisco hosts
+
+/group_vars/cisco.yml
+
+creds_ssh:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+
+global_config:
+  - "ip domain name {{ default_domain }}"
+  - "ip name-server {{ name_server1 }}"
+  - "ip name-server {{ name_server2 }}"
+  - "ntp server {{ ntp1 }}"
+  - "ntp server {{ ntp2 }}"
+
+!Group Vars for Arista Hosts
+
+/group_vars/arista.yml
+
+creds_ssh:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  transport: cli
+  timeout: 60
+
+creds_eapi:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  transport: eapi
+  use_ssl: True
+  validate_certs: no
+
+global_config:
+  - "ip domain-name {{ default_domain }}"
+  - "ip name-server vrf default {{ name_server1 }}"
+  - "ip name-server vrf default {{ name_server2 }}"
+  - "ntp server {{ ntp1 }}"
+  - "ntp server {{ ntp2 }}"
+
+!Inventory for for NXOS
+
+---
+creds_ssh:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  transport: cli
+
+creds_nxapi:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  transport: nxapi
+  use_ssl: yes
+  validate_certs: no
+  port: 8443
+
+global_config:
+  - "ip domain-name {{ default_domain }}"
+  - "ip name-server {{ name_server1 }} {{ name_server2 }}"
+  - "ntp server {{ ntp1 }}"
+  - "ntp server {{ ntp2 }}"
+
+
+!Example Inventory File
+
+[all:vars]
+ansible_connection=local
+# !!! You will need to update this to your Python !!!
+ansible_python_interpreter=/home/kbyers/VENV/ansible/bin/python
+
+[local]
+localhost ansible_connection=local
+
+[cisco]
+pynet-rtr1 ansible_host=184.105.247.70
+pynet-rtr2 ansible_host=184.105.247.71 
+
+[cisco:vars]
+ansible_user=pyclass
+ansible_ssh_pass="[THIS PASSWORD NEEDS TO BE CHANGED]"
+
+[arista]
+pynet-sw1 ansible_host=184.105.247.72
+pynet-sw2 ansible_host=184.105.247.73
+pynet-sw3 ansible_host=184.105.247.74
+pynet-sw4 ansible_host=184.105.247.75
+
+[arista:vars]
+ansible_user=pyclass
+ansible_ssh_pass="[THIS PASSWORD NEEDS TO BE CHANGED]"
+
+!You can increase the number of forks in other the words the number of devices you are pushing a config to by specifying the following command
+
+ansible-playbook mp_config.yml --forks 10

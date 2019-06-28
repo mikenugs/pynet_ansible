@@ -1,0 +1,57 @@
+
+You can create a directory callback plugins and change stdout_callback=selective to change the verbosity of how a plyabook is displayed when it is run
+
+---
+- hosts: pynet-rtr1
+  gather_facts: false
+  connection: local
+
+  #### VARS ####
+  vars:
+    creds:
+      host: "{{ ansible_host }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+    
+  #### TASKS ####
+  tasks:
+    - name: Configure ACL
+      ios_config:
+        provider: "{{ creds }}"
+        lines:
+          - 10 permit ip host 1.1.1.1 any log
+          - 20 permit ip host 2.2.2.2 any log
+        parents: ip access-list extended test1
+        before: no ip access-list extended test1
+        match: exact
+      notify: wr mem <-- This will notify write mem handler when this task has been succsesfull
+
+    - name: templating tasks
+      #### Template ####
+      template:
+        src: test_template.j2
+        dest: ./outfile.txt
+
+  #### HANDLERS ####
+  handlers:
+    - name: wr mem
+      ios_command: 
+        provider: "{{ creds }}"
+        commands: write mem
+
+!You can use roles to compartmentalize your config operations. In the above example we can create a new directory roles/acl_config. And specify the new role under roles: in the playbook. Ansible will always look in a tasks subdirectory for a file called main.yml for tasks to include in the role. You do not need to include tasks in the tasks in your roles files. 
+
+---
+- hosts: pynet-rtr1
+  gather_facts: false
+  connection: local
+  
+  roles:
+    - acl_config
+
+!You can then have subdirectories for things like handlers, tasks, templates, vars... etc> In the below example we will make a main.yml file in handlers with the follwing info
+
+- name: wr mem
+  ios_command:
+    provider: "{{ creds }}"
+    commands: write mem

@@ -1,0 +1,143 @@
+
+With Ansible you can read content from a file in as a variable
+
+---
+- hosts: local
+  vars:
+    # File lookup
+    contents: "{{ lookup('file', './show_ip_int_brief.txt') }}" <-- This will read the .txt document as a file and save it as the variable contents:
+
+  tasks:
+    - name: Display ip interface table
+      debug: 
+        msg: "Routing table is:\n\n{{ contents }}"
+
+    - name: Display routing table (more readable)
+      debug:
+       var: contents.splitlines() <-- This will print the variable contents as a list instead of a string so it displays nicer. In ansible there are several string methods you can use 
+
+    - name: Display routing table with some parsing
+      debug:
+       var: contents.splitlines()[3].split() <-- Here we take the variable contents split it into a list. Then take the fourth element and split that into a list via spaces with the split command. 
+
+Here we do a pipe lookup type
+
+---
+- hosts: local
+  vars:
+    # File lookup
+    who: "{{ lookup('pipe', 'whoami') }}" <-- here we call a lookup again but this time we call a pipe which means that it will execute a system command which is whoami. 
+    show_arp: "{{ lookup('pipe', 'netmiko-show --cmd \"show arp\" pynet_rtr1') }}"
+
+  tasks:
+    - name: Display ip interface table
+      debug: 
+        msg: "Who Am I:\n\n{{ who }}"
+      tags: whoami
+
+    - name: Direct netmiko-show call
+      debug: 
+        var: show_arp.splitlines()
+      tags: netmiko
+
+!Here we have a template lookup
+
+---
+- hosts: cisco
+  vars:
+    my_dict:
+        key1: value1
+        key2: value2
+        key3: value3
+        key4: value4
+        key5: value5
+        key6: value6
+    my_list:
+        - hello
+        - world
+        - some
+        - thing
+        - else
+
+  tasks:
+    - name: Just read data from template file
+      debug:
+        msg: "{{ lookup('template', './simple_template.j2') }}" <-- executing this will look up the .j2 file and print out hello world three times
+      tags: simple_template
+
+    - name: Process list in a template
+      debug:
+        msg: "{{ lookup('template', './process_list.j2') }}" <-- This looks up the .j2 file which has a for loop. It loops through the list my_list that we define in our playbook.
+      tags: process_list
+
+    - name: Process dictionary in a template
+      debug:
+        msg: "{{ lookup('template', './process_dict.j2') }}" <-- here we do a lookup on a .j2 template that iterates through the dictionary that we define above
+      tags: process_dict
+
+!!
+!simple_template.j2
+hello world
+hello world
+hello world
+!!
+!process_list.j2
+Some straight text up here
+...
+...
+
+{% for element in my_list %}
+{{ element }}
+{% endfor %}
+
+
+some text down here
+!!
+!process_dict.j2
+{% for k, v in my_dict.items() %}
+{% if k == 'key3' %} <-- if you match key3 it is good everything else is ignored
+{{ k }} ----> {{ v }}
+{% endif %}
+{% endfor %}
+!!
+
+!Here we have real world usaged for lookup
+
+---
+- hosts: cisco
+  vars:
+    creds:
+        host: "{{ ansible_host }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+    creds_napalm:
+        host: "{{ ansible_host }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        dev_os: ios
+
+  tasks:
+    - napalm_get_facts:
+        provider: "{{ creds_napalm }}"
+        filter: "arp_table"
+
+    - name: Retrieve as a string
+      debug:
+        msg: "{{ lookup('template', './convert_napalm_arp.j2') }}" <-- we recieved the arp table already in the first task with napalm_get_facts. Here we do a template lookup and the template loops through the arp entries and only grabs the ip address and mac address. 
+
+    - name: Convert napalm data structure
+      debug:
+        msg: "{{ lookup('template', './convert_napalm_arp.j2') | from_yaml }}" <-- here we use the from_yaml jinja2 filter. The play is exactly like the one above but this does the conversion while running the play directly
+
+    - set_fact:
+        new_arp: "{{ lookup('template', './convert_napalm_arp.j2') | from_yaml }}" <-- this play does exactly like the one above but we create a variable called new_arp and store the results
+
+    - debug:
+        var: new_arp['10.220.88.1'] <-- here we print the mac address corresponding to the IP by referencing the variable we created.
+
+!
+!convert_napalm_arp.j2
+--- <-- this will print at the top making it a yaml file
+{% for arp_entry in napalm_arp_table %} <-- this line will be omited in the print since it has a %
+{{ arp_entry['ip'] }}: {{ arp_entry['mac'] }}
+{% endfor %}

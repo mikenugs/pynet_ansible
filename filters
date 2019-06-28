@@ -1,0 +1,121 @@
+
+
+--- 
+- hosts: local
+  vars:
+    var1: hello
+    var2: world
+    my_dict:
+        key1: zzzz
+        key2: yyyy
+        key3: whatever
+    my_list:
+        - hello
+        - world
+        - hello
+        - world
+        - hello
+        - world
+        - whatever
+    my_list2:
+        - world
+        - 3
+        - 77
+        - Arista
+    device: Cisco
+        
+  tasks:
+    - debug:
+        msg: "{{ my_dict | to_yaml }}" <-- here we take the dictionary that was written above and pipe it to the yaml filter. This will convert the dictionary to a yaml construct
+
+    - debug:
+        msg: "{{ my_dict | to_nice_yaml }}"<-- this does the same thing but converts it to the nicer looking yaml
+
+!With the below if var3 is not defined above which we can see it is not then we can set a default and print the message within the (''). If var3 existed then it would print out the corresponding key value. 
+
+  tasks:
+    - name: Use a default value
+      debug:
+        msg: "{{ var3 | default('Var3 not defined') }}"
+
+  tasks:
+    - name: Set operations (unique)
+      debug:
+        msg: "{{ my_list | unique }}" <-- as you can see in the above my_list there are multiple duplicates. When you pipe it to unique it will get rid of all of the duplicates. 
+      tags: unique
+
+    - name: Set operations (union)
+      debug:
+        msg: "{{ my_list | union(my_list2) }}" <-- This will combine the two lists but remove the duplicates
+      tags: union
+
+    - name: Set operations (intersection)
+      debug:
+        msg: "{{ my_list | intersect(my_list2) }}" <-- this will tell us what the common items are between the two lists
+      tags: intersection
+
+    - name: Set operations, difference (unique items in my_list not in my_list2)
+      debug:
+        msg: "{{ my_list | difference(my_list2) }}" <-- this will remove all duplicates and show what is unique to my_list2
+      tags: difference
+
+    - name: Set operations, unique items in each list
+      debug:
+        msg: "{{ my_list | symmetric_difference(my_list2) }}" <-- this shows the unique elements to each list. 
+      tags: sym_diff
+
+!Combining dictionaries
+
+    my_dict:
+        key1: zzzz
+        key2: yyyy
+        key3: whatever
+
+  tasks:
+    - name: Combine two dictionaries
+      debug:
+        msg: "{{ my_dict | combine({'key7': 'foo', 'key8': 'bar'}) }}" <-- this will add these elements to the dictionary
+      tags: combine
+
+    - name: Extract values from a dict
+      debug:
+        msg: "{{ ['key1', 'key2'] | map('extract', my_dict) | list }}" <-- here we define the keys we want to extract which are key1, key2, then we use map('extract') and specify the dictionary to extract from my_dict. We then pipe that to list which will create a list from it. 
+      tags: extract
+
+!There is also a ternary filter
+
+  tasks:
+    - name: Ternary operation
+      debug:
+        msg: "{{ (device == 'Cisco') | ternary('answer1', 'answer2') }}" <-- This tells us if device == Cisco is True then we get answer1 and if false we get answer2
+
+    - name: Cast string as boolean
+      debug:
+        msg: "{{ 'no' | bool }}" <-- this will cast the string as a boolien
+
+    - name: Use regex_replace
+      debug:
+        msg: "{{ 'Some big string to parse' | regex_replace('^Some\\s+(big.*)$', '\\1 test') }}" <-- This will perform a regex replace on the first string which is being displayed my message. 
+
+!Real world example
+
+  tasks:
+    - napalm_get_facts:
+        provider: "{{ creds_napalm }}"
+        filter: "arp_table" <-- we run the napalm get facts module and filter on arp table
+      tags: 
+        - napalm_only
+        - combine
+
+    - debug:
+        msg: "{{ napalm_arp_table | map(attribute='ip') | list }}" <-- This will search the napalm arp table and find all of the key values for IP and convert them to a list and print them out.
+      tags: napalm_only
+
+    - set_fact:
+        my_dict: "{{ my_dict|default({}) | combine( {item.ip: item.mac} ) }}" <-- here we create a new dictionary and we create an empty one by specefying default {}. We them loop through the dictionary napalm_arp_table with the below with_items. We then use the combine filter to add the ip address and mac address via matching the key
+      with_items: "{{ napalm_arp_table }}"
+      tags: combine
+
+    - debug:
+        var: my_dict
+      tags: combine

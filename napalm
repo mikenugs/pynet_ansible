@@ -1,0 +1,355 @@
+NAPALM is a Python library that provides a standard set of operations across a range of platforms. Operations fall into two general catagories
+1.) config operations
+2.) getter operations
+You will recieve a standardized data structure for the getter operations across platforms. That way you can have a single task for multiple vendors instead of a task per vendor.
+
+ - Core Vendors
+Arista EOS
+Cisco IOS
+Cisco IOS-XR
+Cisco NX-OS
+Juniper Junos
+ - Community
+Fortinet Fortios
+Mikrotik Router OS
+Palo Alto NOS
+Pluribus
+VyOS
+
+ - Napalm Ansible Modules
+Napalm validate
+Napalm get facts
+Napalm Ping
+Napalm Install Config
+
+ - There are a ton of Napalm getters
+
+ To get Napalm to work with Ansible you will have to do a git-clone on the Napalm/Ansible repository
+
+ You can then do a "ls napalm-ansible/library" to see the modules
+
+ cat .ansible.cfg
+
+ Modify the library path to include the directory for napalm-ansible/library
+
+ In the future these modules should be pip installable but you will still need to update the library path
+
+ !Using Napalm Ping module
+
+1.) You can specify the login info within the module
+
+---
+- name: NAPALM PING
+  hosts: cisco
+  tasks:
+    - name: NAPALM ping
+      napalm_ping: 
+        hostname: "{{ ansible_host }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        dev_os: "ios"
+        destination: 10.220.88.1
+
+2.) Or you can use provider and set the variables in group_vars
+
+---
+- name: NAPALM PING
+  hosts: cisco:arista
+  tasks:
+    - name: NAPALM ping
+      napalm_ping: 
+        provider: "{{ creds }}"
+        destination: 10.220.88.1
+
+ /group_vars/arista.yml
+
+ ---
+creds:
+  hostname: "{{ ansible_host }}"
+  username: "{{ ansible_user }}"
+  password: "{{ ansible_ssh_pass }}"
+  dev_os: "eos"
+  optional_args: {}
+
+/group_vars/cisco.yml
+
+---
+creds:
+  hostname: "{{ ansible_host }}"
+  username: "{{ ansible_user }}"
+  password: "{{ ansible_ssh_pass }}"
+  dev_os: "ios"
+
+creds_secret:  <-- if we specifyed creds_secret instead of creds for ios we would be passing this username test9 with only a priviledge level 1. Then it would also have the enable secret as well if it needed admin priv.
+  hostname: "{{ ansible_host }}"
+  username: test9
+  password: "{{ ansible_ssh_pass }}"
+  dev_os: "ios"
+  optional_args:
+  secret: "{{ ansible_ssh_pass }}"
+
+!You can also specify the provider info in your playbook under vars:
+
+---
+- name: NAPALM on IOS
+  hosts: pynet-rtr1
+  vars:
+    creds:
+        hostname: "{{ ansible_host }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        dev_os: "ios"
+  tasks:
+    - name: NAPALM facts
+      napalm_get_facts: 
+      provider: "{{ creds }}"
+
+!Napalm getters
+
+!Here is an example of using the Napalm getter modules you can look at the below web site to see what modules are available. All you have to do is remote the get_ from the name and place the name after filter. You can use multiple filters by using a comma after each one. 
+
+https://napalm.readthedocs.io/en/latest/support/index.html#getters-support-matrix
+
+---
+
+- name: NAPALM on EOS
+  hosts: pynet-sw5
+  tasks:
+    - name: NAPALM facts
+      napalm_get_facts: 
+      provider: "{{ creds }}"
+
+With filter you can look at the web site 
+
+---
+- name: Test NAPALM on IOS
+  hosts: pynet-rtr1
+  tasks:
+    - name: NAPALM facts
+      napalm_get_facts: 
+            hostname: "{{ ansible_host }}"
+            username: "{{ username }}"
+            password: "{{ password }}"
+            dev_os: "ios"
+            filter: "facts,interfaces,bgp_neighbors"
+
+    - debug:
+        var: napalm_model
+
+!To retrieve a devices, candidate, running and startup config you can use the get_config from Napalm
+
+---
+
+- name: NAPALM on EOS
+  hosts: pynet-sw5
+  tasks:
+    - name: NAPALM config
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "config"
+
+!Here we retrieve a ton of information from Ansible using the Napalm get_facts and filter via several of the available modules
+
+---
+
+- name: NAPALM on EOS
+  hosts: pynet-sw5
+  tasks:
+    - name: ARP
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "arp_table,mac_address_table"
+    - name: BGP
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "bgp_config,bgp_neighbors,bgp_neighbors_detail"
+    - name: Config
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "config,environment,facts"
+    - name: Interfaces
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "interfaces,interfaces_counters,interfaces_ip"
+    - name: LLDP
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "lldp_neighbors,lldp_neighbors_detail"
+    - name: Network Instances
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "network_instances"
+    - name: NTP
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "ntp_servers,ntp_stats"
+    - name: Optics
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "optics"
+    - name: SNMP
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "snmp_information"
+    - name: Users
+      napalm_get_facts: 
+        provider: "{{ creds }}"
+        filter: "users"
+
+!Napalm Validate module
+
+!The validate file can be placed in host vars or group vars. If a value specified in this file does not match what is returned from the device it will give you an error when running. 
+
+---
+- name: NAPALM Validation
+  hosts: pynet-sw6:pynet-rtr1
+  tasks:
+    - name: NAPALM validate
+      napalm_validate: 
+        provider: "{{ creds }}"
+        validation_file: "{{ validate_file }}"
+
+!/group_vars/arista.yml
+
+---
+creds:
+  hostname: "{{ ansible_host }}"
+  username: "{{ ansible_user }}"
+  password: "{{ ansible_ssh_pass }}"
+  dev_os: "eos"
+  optional_args: {}
+
+!/group_vars/cisco.yml
+
+---
+creds:
+  hostname: "{{ ansible_host }}"
+  username: "{{ ansible_user }}"
+  password: "{{ ansible_ssh_pass }}"
+  dev_os: "ios"
+
+creds_secret:
+  hostname: "{{ ansible_host }}"
+  username: test9
+  password: "{{ ansible_ssh_pass }}"
+  dev_os: "ios"
+  optional_args:
+    secret: "{{ ansible_ssh_pass }}"
+
+validate_file: "validate_ios.yml"
+
+!validate_ios.yml
+
+---
+- get_facts:
+    model: "881"
+    os_version: "Version 15.4.2.T1"
+    vendor: Cisco
+    serial_number: FTX1512038X
+    hostname: pynet-rtr1
+
+- get_arp_table:
+    list:
+        - ip: 10.220.88.1
+
+/validate_eos.yml
+
+---
+- get_facts:
+    os_version: "4.15.4F-2923910.4154F"
+    model: vEOS
+    vendor: Arista
+    interface_list:
+      - Ethernet1
+      - Ethernet2
+      - Ethernet3
+      - Ethernet4
+      - Ethernet5
+      - Ethernet6
+      - Ethernet7
+      - Management1
+      - Vlan1
+
+- get_arp_table:
+    list:
+       - ip: 10.220.88.1
+
+!Merging a configuration using Napalm
+
+---
+
+- name: Test napalm merge
+  hosts: pynet-sw5:pynet-rtr1:srx1:nxos1
+  tasks:
+    - napalm_install_config:
+        provider: "{{ creds }}"
+        config_file: "CFGS/{{ inventory_hostname }}-merge.txt"
+        commit_changes: True
+        replace_config: False  <-- This ensures it is a merge not a replace. In other words it will only add a subsection not remove what is currently in place. 
+        diff_file: "DIFFS/{{ inventory_hostname }}.txt"
+
+CFGS/nxos1-merge.txt
+
+logging history size 400
+
+CFGS/pynet-sw5-merge.txt
+
+logging buffered 50000
+
+!Here we use the install_config module to install vlans on devices
+
+---
+
+- name: Test napalm merge
+  hosts: arista:nxos
+  tasks:
+    - napalm_install_config:
+        provider: "{{ creds }}"
+        config_file: "CFGS/{{ creds['dev_os'] }}-vlans.txt"
+        commit_changes: True
+        replace_config: False
+        diff_file: "DIFFS/{{ inventory_hostname }}.txt"
+
+CFGS/eos-vlans.txt
+
+vlan 300
+  name blue0
+vlan 301
+  name blue1
+vlan 302
+  name blue2
+vlan 303
+  name blue3
+vlan 304
+  name blue4
+
+CFGS/nxos-vlans.txt
+
+vlan 300
+  name blue0
+vlan 301
+  name blue1
+vlan 302
+  name blue2
+vlan 303
+  name blue3
+vlan 304
+  name blue4
+
+!You can also use Napalm to perform a complete configuration replacement. You will need to place your configuration in CFGS/nxos1.txt where nxos1 is the name of the hostname you are going to configure. You still use install_config module like you did with a merge
+
+---
+- name: Test napalm replace 
+  hosts: pynet-rtr1:pynet-sw5:srx1:nxos1
+  tasks:
+    - napalm_install_config:
+        provider: "{{ creds }}"
+        config_file: "CFGS/{{ inventory_hostname }}.txt"
+        commit_changes: True
+        replace_config: True <-- you must specify this to True
+        diff_file: "DIFFS/{{ inventory_hostname }}.txt"
+
+!Do not try and get the config and create the file by copying and pasting a show run. Instead perform an SCP to get the config file or use Python to obtain it. Make sure that the line for building configuration is not in the config file. For IOS it will SCP the file over to the system. It will then do a DIFF and save the DIFF lines locally before performing the replace.
+
+
+
