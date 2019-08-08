@@ -1,0 +1,8 @@
+Make sure you check your playbook structure for spacing. There is indentation for plays, tasks and arguments. 
+
+Ansible knows where to find the core modules but for napalm or NTC you need to specify where Ansible can find these modules
+
+If you get an error stating that it cannot find the module path edit ~/.ansible.cfg and check the library line. Make sure you add the module path such as ~/napalm-ansible/library: before or after the other paths
+
+
+

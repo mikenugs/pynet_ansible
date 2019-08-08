@@ -1,0 +1,165 @@
+
+
+In general the things that you configure that stay the same should be in the playbook and the things that change should be specified as a variable some place. 
+
+You typically want to create both group_vars and host_vars
+
+mkdir group_vars
+mkdir host_vars
+mkdir CFGS
+mkdir DIFFS
+
+Add your provider.yml file in group_vars
+
+#### group_vars/arista/providers.yml
+
+---
+platform: eos
+
+creds_core_ssh:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  transport: cli
+  timeout: 60
+
+creds_core_eapi:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  transport: eapi
+  use_ssl: True
+  validate_certs: no
+  timeout: 60
+
+creds_napalm:
+  hostname: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  dev_os: "eos"
+  optional_args: {}
+
+!You can also add non host specific variables in group_vars. Here we specify the unique vlan variables. 
+
+---
+vlans:
+  - vlan_id: 700
+    vlan_name: green700
+  - vlan_id: 701
+    vlan_name: green701
+  - vlan_id: 702
+    vlan_name: green702
+  - vlan_id: 703
+    vlan_name: green703
+  - vlan_id: 704
+    vlan_name: green704
+  - vlan_id: 705
+    vlan_name: green705
+  - vlan_id: 706
+    vlan_name: green706
+
+!vlans.j2
+
+{% for x in vlans %} <-- Here we iterate through the vlan variables in group_vars
+vlan {{ x.vlan_id }}
+   name {{ x.vlan_name }}
+{% endfor %}
+
+!host_vars/pynet-sw6/switchport.yml <-- Here we specify the interface configuration parameters in host vars
+
+---
+ports:
+  - port_name: Ethernet2
+    mode: access
+    access_vlan: 700
+  - port_name: Ethernet3
+    mode: trunk
+    native_vlan: 1
+    trunk_allowed: all
+  - port_name: Ethernet4
+    mode: access
+    access_vlan: 705
+  - port_name: Ethernet5
+    mode: access
+    access_vlan: 702
+  - port_name: Ethernet6
+    mode: trunk
+    native_vlan: 1
+    trunk_allowed: 701-706
+  - port_name: Ethernet7
+    mode: trunk
+    native_vlan: 700
+    trunk_allowed: 700,701
+
+!switchport.j2
+
+!
+{% for port in ports %}  <-- Here we iterate through the ports in host_vars directory
+interface {{ port.port_name }} <-- Here we specify the port in host_vars switchport file
+{% if port.mode == 'access' %}  <-- We first check to see if it is an access port or trunk
+   switchport mode {{ port.mode }} <-- If its access we add the below config adding the variables in switchport file.
+   switchport access vlan {{ port.access_vlan }}
+{% elif port.mode == 'trunk' %}  <-- If the port mode is trunk we add the below links and match on the variables in switchport under host_vars directory
+   switchport mode {{ port.mode }}
+   switchport trunk allowed vlan {{ port.trunk_allowed }}
+   switchport trunk native vlan {{ port.native_vlan }}
+{% endif %}
+!
+{% endfor %}
+
+!Playbook
+
+---
+- name: Configuring Switchports
+  hosts: pynet-sw6
+  tasks:
+    - name: Testing connectivity (Ansible Core)
+      eos_facts:
+        provider: "{{ creds_core_eapi }}" <-- Here we test connectivity for eAPI
+
+    - name: Testing connectivity (NAPALM)
+      napalm_get_facts:
+        provider: "{{ creds_napalm }}" <-- here we test connectivity for NAPALM
+
+    - name: Generate the VLAN configs
+      template:
+        src: vlans.j2  <-- Here we specify the source vlan template
+        dest: "CFGS/{{ inventory_hostname }}/1-vlans.txt" <-- We add a hyphen prior to vlans and specify the number 1 so it is added to the assembled file prior to switchport which has a /2 before switchport.txt. The filename that will be created will be in the directory of CFGS/DEVICEHOSTNAME/1-vlans.txt
+      tags:
+        gen_template
+
+    - name: Generate Switchport configs
+      template:
+        src: switchport.j2
+        dest: "CFGS/{{ inventory_hostname }}/2-switchport.txt"  The filename that will be created will be in the directory of CFGS/DEVICEHOSTNAME/2-switchport.txt
+      tags:
+        gen_template
+
+    - assemble: <-- We use assumble to take both the vlan and switchport files and create a new file. 
+        src: "CFGS/{{ inventory_hostname }}/" <-- This specifies that the source is all the files in the firectory. 
+        dest: "CFGS/{{ inventory_hostname }}.txt" <-- The vlan config from that file is added prior to the interface config and generated in this single config file. 
+      tags:
+        gen_template
+
+    - name: Install VLANs + Switchport
+      napalm_install_config:
+        provider: "{{ creds_napalm }}"
+        config_file: "CFGS/{{ inventory_hostname }}.txt"
+        commit_changes: True
+        replace_config: False
+        diff_file: "DIFFS/{{ inventory_hostname }}.txt"
+
+!Validation of switchport configuration
+
+---
+- name: Configuring Switchports
+  hosts: pynet-sw6
+  tasks:
+    - name: Testing connectivity (core)
+      eos_facts:
+        provider: "{{ creds_core_eapi }}"
+
+    - name: Switchport verification
+      eos_command:
+        provider: "{{ creds_core_eapi }}"
+        commands: show interfaces status

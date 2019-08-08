@@ -1,0 +1,78 @@
+
+
+---- Example Inventory file
+
+[all:vars]
+ansible_user=pyclass <-- username and password is specified
+ansible_ssh_pass=CHANGEME_THIS_PASSWORD_IS_NOT_VALID
+
+[local]
+localhost ansible_connection=local
+
+[cisco]
+pynet-rtr1 ansible_host=cisco1.twb-tech.com
+pynet-rtr2 ansible_host=cisco2.twb-tech.com
+
+[cisco:vars]
+ansible_connection=network_cli
+ansible_network_os=ios <-- We specify the os type for network cli
+
+[arista]
+pynet-sw5 ansible_host=arista5.twb-tech.com
+pynet-sw6 ansible_host=arista6.twb-tech.com
+pynet-sw7 ansible_host=arista7.twb-tech.com
+pynet-sw8 ansible_host=arista8.twb-tech.com
+
+[arista:vars]
+ansible_connection=local
+ansible_network_os=eos 
+
+[juniper]
+srx1 ansible_host=srx1.twb-tech.com
+
+[juniper:vars]
+ansible_connection=netconf
+ansible_network_os=junos
+
+[nxos]
+nxos1 ansible_host=nxos1.twb-tech.com
+nxos2 ansible_host=nxos2.twb-tech.com
+
+[nxos:vars]
+ansible_connection=local
+ansible_network_os=nxos 
+
+ ---- Example Playbook
+
+- name: Ansible2.5 Arista eapi using provider
+  gather_facts: no
+  hosts: arista
+  tasks:
+    - name: Arista facts
+      eos_facts:
+        provider: "{{ creds_core_eapi }}"
+
+- name: Ansible2.5 NX-OS nxapi using provider
+  gather_facts: no
+  hosts: nxos 
+  tasks:
+    - name: NX-OS facts
+      nxos_facts:
+        provider: "{{ creds_core_nxapi }}"
+
+- name: Ansible2.5 junos (no provider)
+  gather_facts: no
+  hosts: juniper
+  tasks:
+    - name: Obtain junos facts
+      junos_facts:
+
+- name: Ansible2.5 ios (no provider)
+  gather_facts: no
+  hosts: cisco
+  tasks:
+    - name: Obtain show arp output
+      ios_command:
+        commands: show arp
+
+        

@@ -1,0 +1,38 @@
+With Ansible 2.4 and 2.5 Ansible uses network_cli instead of provider with the networking core modules. With provider we specified our login information by creating a dictionary of those attributes. The values of those attributes are defined in the inventory file. 
+
+If you try to run your playbook with Ansible 2.4 and specify the login information using -u pyclass -k so you can specify these at runtime the username will not be displayed correctly. You can get around this issue with 2.4 by using '--extra-vars="my_user=pyclass" -k'
+
+With network cli the connection is still local in that it runs the python program on the Ansible controller. It now defers the arguments as to what is in inventory
+
+
+[local]
+localhost ansible_connection=local
+
+[cisco]
+pynet-rtr1 ansible_host=cisco1.twb-tech.com
+pynet-rtr2 ansible_host=cisco2.twb-tech.com
+
+[cisco:vars]
+ansible_network_os=ios <-- You need to specify this as well
+ansible_connection=network_cli <-- You specify network cli instead of local
+
+ ---- Playbook
+
+ !As you can see there is no longer a provider
+
+ - name: Ansible2.5 no provider
+  gather_facts: no
+  hosts: cisco
+
+  tasks:
+    - name: Obtain show arp output
+      ios_command:
+        commands: show arp
+
+You can also now specify -u pyclass -k to input username password via CLI using network_cli and Ansible 2.5
+
+napalm and ntc ansible modules you need to still specify connection local for now. eapi and nxapi you will still need to specify provider. In Ansible 2.6 this should change. 
+
+Here is a list of the available network_os types
+
+https://github.com/ansible/ansible/blob/devel/docs/docsite/rst/network/user_guide/platform_index.rst

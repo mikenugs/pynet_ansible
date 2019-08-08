@@ -1,0 +1,41 @@
+With Declaritive Intent you can do more than just configure devices. You can also ensure
+that the device comes up and is corrected to the proper neighbors... etc. It is used to make sure that you not just have the desired configuration state but also the desired operational state.
+
+
+
+- name: Configure interface
+  hosts: pynet-rtr1
+  gather_facts: no
+
+  tasks:
+    - name: configure interface FA0
+      ios_interface:
+          name: FastEthernet0
+          description: "Testing ANS2.4"
+          state: down  <-- This makes sure the port is down
+          enabled: True <-- This will do a no shut on the port
+
+    - name: configure interface FA4
+      ios_interface:
+          name: FastEthernet4
+          description: "Testing ANS2.4 (Fa4)"
+          state: up <-- This ensures that the interface is up. 
+           neighbors:  <-- This makes sure that the LLDP neighbor is the one specified
+            - host: "twb-sf-hpsw1"
+              port: "15"
+
+---- Example #2
+
+- name: Configure interface
+  hosts: pynet-sw6
+  gather_facts: no
+
+  tasks:
+    - name: Check interfaces associated with VLAN
+      eos_vlan:
+        vlan_id: 403 <-- Ensures that vlan 403 exists
+        state: present <-- Ensures that its state is present
+        associated_interfaces:
+          # - Ethernet5
+          - Ethernet6  <-- This ensures that these two interfaces belong to this vlan
+          - Ethernet7

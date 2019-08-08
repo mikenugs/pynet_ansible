@@ -1,0 +1,30 @@
+With Ansible 2.3 and 2.4 you have to use this authorize argument to go into enable. With Ansible 2.5 you can now use become to enter into enable mode. 
+
+
+---- Inventory file example
+
+[local]
+localhost ansible_connection=local
+
+[cisco]
+pynet-rtr1 ansible_host=cisco1.twb-tech.com
+
+[cisco:vars]
+ansible_network_os=ios 
+ansible_user=test9
+ansible_ssh_pass=CHANGEME_THIS_PASSWORD_IS_NOT_VALID
+ansible_connection=network_cli
+ansible_become=yes      <-- You must specify this line
+ansible_become_method=enable  <-- And this line
+ansible_become_pass=CHANGEME_THIS_PASSWORD_IS_NOT_VALID <-- And this as well
+
+---- Playbook example
+
+- name: Ansible2.5 become
+  gather_facts: no
+  hosts: cisco
+
+  tasks:
+    - name: Obtain show run
+      ios_command:
+        commands: show run

@@ -1,0 +1,246 @@
+This playbook pushed the BGP configuration to the intended targets
+
+---
+- name: Configuring BGP
+  hosts: pynet-sw5:pynet-rtr1:pynet-sw6
+  tasks:
+    - name: "Remove the CFGs/device directory"
+      file:
+        path: "CFGS/{{ inventory_hostname }}" <-- This will delete the directory every time the playbook is run. This is to clear out all the files since the essemble may add things that we do not want to be there. 
+        state: absent
+      tags: remove_files
+
+    - name: "Recreate the CFGS/device directory"
+      file:
+        path: "CFGS/{{ inventory_hostname }}"
+        state: directory
+      tags: remove_files
+
+    - name: "Add empty file so that directories exist in GitHub"
+      copy:
+        src: "./invalid"
+        dest: "CFGS/{{ inventory_hostname }}/invalid"
+      tags: remove_files
+
+    - name: Testing connectivity (NAPALM)
+      napalm_get_facts:
+        provider: "{{ creds_napalm }}"
+
+    - name: Generate the BGP config
+      template:
+        src: "bgp-{{ platform }}.j2" <-- platform is a variable defined in group-vars and is ios,eos ... etc
+        dest: "CFGS/{{ inventory_hostname }}/3-bgp.txt"
+      tags:
+        gen_template
+
+    - assemble: <-- Even though we are onloy using one file we will keep assemble on here in case we want to merge files together in the future. 
+        src: "CFGS/{{ inventory_hostname }}/"
+        dest: "CFGS/{{ inventory_hostname }}.txt" <-- This is the file we create
+      tags:
+        gen_template
+
+    - name: Install BGP Config
+      napalm_install_config: <-- Here we use Napalm to push the configurations
+        provider: "{{ creds_napalm }}"
+        config_file: "CFGS/{{ inventory_hostname }}.txt"
+        commit_changes: True
+        replace_config: False
+        diff_file: "DIFFS/{{ inventory_hostname }}.txt"
+
+
+/bgp_validate.yml <-- This playbook is used to Validate BGP neighbors
+
+---
+- name: Verify BGP
+  hosts: pynet-sw5:pynet-rtr1:pynet-sw6
+  tasks:
+    - name: Verify BGP
+      napalm_get_facts:
+        provider: "{{ creds_napalm }}"
+        filter: bgp_neighbors
+
+#    - debug:
+#        msg: "{{ napalm_bgp_neighbors.global.peers }}"
+
+    - set_fact:
+        bgp_oper_neighbors: "{{ napalm_bgp_neighbors.global.peers }}"
+
+    - name: Current Neighbors
+      set_fact:
+        bgp_cur_neighbors: "{{ bgp_cur_neighbors | default([]) + [ item.key ] }}"
+      with_dict: "{{ bgp_oper_neighbors }}"
+
+    - name: Intended Neighbors
+      set_fact:
+        bgp_intended: "{{ bgp_peers | map(attribute='peer_ip') | list }}"
+
+    - name: Verify BGP Neighbors
+      assert:
+        that:
+          - "{{ bgp_intended | symmetric_difference(bgp_cur_neighbors) }} == []"
+
+
+!!!/bgp-ios.j2
+
+!
+router bgp {{ bgp_as }} <-- These variables match what is in host_vars for bgp.yml
+{% for route in announced_routes %}
+ network {{ route.prefix }} mask {{ route.mask }}
+{% endfor %}
+{% for peer in bgp_peers %}
+ neighbor {{ peer.peer_ip }} remote-as {{ peer.peer_as }} <-- Since we are looping over bgp_peers you must specify peer.peer_ip to get the value for neighbor and peer.peer_as for the AS
+{% endfor %}
+!
+{% for static_route in static_routes %} <-- Here we loop over static_routes in bgp.yml
+ip route {{ static_route.prefix }} {{ static_route.mask }} {{ static_route.next_hop }} <-- Since we are looping we need to specify static_route.prefix to get the prefix variable
+{% endfor %}
+!
+
+!!!/bgp-eos.j2
+
+!
+router bgp {{ bgp_as }}
+{% for peer in bgp_peers %}
+   neighbor {{ peer.peer_ip }} remote-as {{ peer.peer_as }}
+   neighbor {{ peer.peer_ip }} maximum-routes {{ peer.maximum_routes }}
+{% endfor %}
+{% for route in announced_routes %}
+   network {{ route.prefix }}/{{ route.mask }}
+{% endfor %}
+!
+{% for static_route in static_routes %}
+ip route {{ static_route.prefix }}/{{ static_route.mask }} {{ static_route.next_hop }}
+{% endfor %}
+!
+
+/group_vars/cisco/providers.yml
+
+---
+platform: ios
+
+creds_core_ssh:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  timeout: 60
+
+creds_napalm:
+  hostname: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  dev_os: "ios"
+  optional_args: {}
+
+/group_vars/arista/providers.yml
+
+---
+platform: eos
+
+creds_core_ssh:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  transport: cli
+  timeout: 60
+
+creds_core_eapi:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  transport: eapi
+  use_ssl: True
+  validate_certs: no
+  timeout: 60
+
+creds_napalm:
+  hostname: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  dev_os: "eos"
+  optional_args: {}
+
+/host_vars/pynet-rtr1/bgp.yml
+
+---
+bgp_as: 42
+
+bgp_peers: <-- since we can have more that one BGP peer with unique IP's and AS it is a good idea to create a list for this information.
+  - peer_ip: 10.220.88.32
+    peer_as: 18
+    maximum_routes: "" <-- We may or may not have this as part of the peer config so we hardcode it but leave a null value since this peer does not specify this. 
+  - peer_ip: 10.220.88.33
+    peer_as: 18
+    maximum_routes: ""
+
+announced_routes: <-- since we can have more than one route it is a good idea to create a list for these.
+  - prefix: 1.1.50.0
+    mask: 255.255.255.0
+  - prefix: 1.1.51.0
+    mask: 255.255.255.0
+
+static_routes:
+  - prefix: 1.1.50.0
+    mask: 255.255.255.0
+    next_hop: Null0
+  - prefix: 1.1.51.0
+    mask: 255.255.255.0
+    next_hop: Null0
+
+/host_vars/pynet-sw6/bgp.yml
+
+---
+bgp_as: 18
+
+bgp_peers: <-- since we can have more that one BGP peer with unique IP's and AS it is a good idea to create a list for this information.
+  - peer_ip: 10.220.88.20
+    peer_as: 42
+    maximum_routes: 12000
+
+announced_routes: <-- since we can have more than one route it is a good idea to create a list for these.
+  - prefix: 2.2.3.0
+    mask: 24
+
+static_routes:
+  - prefix: 2.2.3.0
+    mask: 24
+    next_hop: Null0
+
+!Here is the playbook that can be used to confirm the intended BGP neighbors are configured
+
+---
+- name: Verify BGP
+  hosts: pynet-sw5:pynet-rtr1:pynet-sw6
+  tasks:
+    - name: Verify BGP
+      napalm_get_facts:
+        provider: "{{ creds_napalm }}"
+        filter: bgp_neighbors
+
+#    - debug:
+#        msg: "{{ napalm_bgp_neighbors.global.peers }}" <-- We can use debug to take a look at the structured data that comes back so we know how to set the facts to define the variable based on only the data we are interested in.
+
+    - set_fact:
+        bgp_oper_neighbors: "{{ napalm_bgp_neighbors.global.peers }}"
+
+    - debug:
+        msg: "{{ item }}" <-- item.key prints out the IP addresses which are the keys when you iterate over with_dict. They are displayed if you tried to print out item when iterating using with_dict.
+      with_dict: "{{ bgp_oper_neighbors }}" <-- Since the data we get back from bgp_oper_neighbors has dictionary keys that are different IP addresses that we are interested in. We can iterate over those keys by using with_dict
+
+    - name: Current Neighbors
+      set_fact:
+        bgp_cur_neighbors: "{{ bgp_cur_neighbors | default([]) + [ item.key ] }}" <-- Here we create the list bgp_cur_neighbors and append the key value which is the IP address to the list. The default[] list only gets used if there are no elements in the list. 
+      with_dict: "{{ bgp_oper_neighbors }}" <-- Here we loop over the variable we created with set_fact above which is a dictionary. We want to convert those dictionary keys into a list. 
+
+    - name: Intended Neighbors
+      set_fact:
+        bgp_intended: "{{ bgp_peers | map(attribute='peer_ip') | list }}" <-- bgp_peers is the variable we created with the peers we want to configure in group_vars. We pass this through map and look for just the attribute we have defined in the dictionary called peer_ip. We then pass this through the list filter and save it as bgp_intended
+
+    - name: Verify BGP Neighbors
+      assert:
+        that:
+          - "{{ bgp_intended | symmetric_difference(bgp_cur_neighbors) }} == []" <-- Here we want to ensure that bgp_intended and bgp_cur_neighbors match. If they match exactly then the results should be empty. We add the conditional check ==[] blank list to ensure that there are no extra peers. If there are extra unentended peers then the list will be populated with those peers.
+
+!You can also try doing a debug to see what type of data comes back before you write your playbook.
+      debug:
+        msg:
+          - "{{ bgp_intended | symmetric_difference(bgp_cur_neighbors) | list }}

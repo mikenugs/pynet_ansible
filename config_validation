@@ -1,0 +1,141 @@
+Here we want to augment our playbook so that the final configuration will be only what we want when we push and does not add in addition to previous config. We also need a way to validate that the change was succsesfull. 
+
+
+---
+- name: Config validation
+  hosts: cisco
+  vars:
+    cfg_ntp:
+          - ntp server {{ ntp1 }}
+          - ntp server {{ ntp2 }}
+
+  tasks:
+    - name: Check connectivity
+      ios_facts:
+        provider: "{{ creds_core_ssh }}"
+
+    - name: Make config changes
+      ios_config:
+        provider: "{{ creds_core_ssh }}"
+        lines: "{{ cfg_ntp }}" <-- here we configure the two NTP servers located in vars:
+
+    - name: Determine NTP Servers Configured
+      ios_command:
+        provider: "{{ creds_core_ssh }}"
+        commands: "show run | inc ntp" <-- here we run the command to show all of the NTP servers that are configured
+      register: ntp_servers <-- and we register the output here. We want to compare these elements here with the elements that we originally pushed using ios_config
+
+    - set_fact:
+        ntp_servers_proc: "{{ ntp_servers.stdout_lines[0] }}" <-- ntp_servers.stdout_lines is a list within a list so we pop the outer list because we only want the ntp server config data that is wrapped in a list.  This is saved in the variable ntp_servers_proc 
+
+    - set_fact:
+        extra_ntp_srvs: "{{ ntp_servers_proc | difference(cfg_ntp) | list }}" <-- We then create a new variable called extra_ntp_srvs and pass ntp_servers_proc through the jinja2 difference filter. We pass cfg_ntp to this filter which is our original ntp server config. This will remove our ntp server original config and save only the extra ntp servers in the variable extra_ntp_srvs. These are the servers that should not be configured that is saved to extra_ntp_srvs
+
+    - debug:
+        msg: NTP Servers are correct
+      when: extra_ntp_srvs == [] <-- This checks to see if extra_ntp_srvs is empty meaning there are no extra NTP servers. If this is the case then this is configured correctly. 
+
+    - name: Remove extra NTP Servers
+      ios_config:
+        provider: "{{ creds_core_ssh }}"
+        lines: "no {{ item }}"
+      with_items: "{{ extra_ntp_srvs }}" <-- here we loop over the list extra_ntp_srvs and with each entry to the list we add "no" in front of the line.
+
+--- /group_vars/all.yml
+
+---
+name_server1: 8.8.8.8
+name_server2: 8.8.4.4
+
+default_domain: bogus1.com
+
+ntp1: 130.126.24.24
+ntp2: 152.2.21.1
+#ntp1: 10.10.24.24
+#ntp2: 10.2.21.1
+
+--- /group_vars/cisco.yml
+
+---
+platform: ios
+
+creds_core_ssh:
+  host: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  timeout: 60
+
+creds_napalm:
+  hostname: "{{ ansible_host }}"
+  username: "{{ username }}"
+  password: "{{ password }}"
+  dev_os: "ios"
+  optional_args: {}
+
+----------------------------
+
+!Here we configure name-servers, domain name and want to make sure that we can ping DNS wants this is complete. 
+
+
+---
+- name: Config validation
+  hosts: cisco
+  vars:
+    name_servers:
+          - ip name-server {{ name_server1 }}
+          - ip name-server {{ name_server2 }}
+    cfg_dns:
+          - ip domain name {{ default_domain }}
+          - ip domain lookup
+
+  tasks:
+    - name: Check connectivity
+      ios_facts:
+        provider: "{{ creds_core_ssh }}"
+
+    - name: Make config changes
+      ios_config:
+        provider: "{{ creds_core_ssh }}"
+        lines: "{{ cfg_dns }} + {{ name_servers }}" <-- Here we do a list concatination where we push both the DNS and the name server config to the ios_config core module. 
+
+    - name: Determine DNS Servers Configured
+      ios_command:
+        provider: "{{ creds_core_ssh }}"
+        commands: "show run | inc name-server" <-- We now determine what name servers are configured and store that using the dns_servers variable
+      register: dns_servers
+
+    - set_fact:
+        dns_servers_proc: "{{ dns_servers.stdout_lines[0] }}" <-- Here we strip out the outer list that we just saved and save the inner list of dns servers as dns_servers_proc
+
+    - set_fact:
+        extra_dns_srvs: "{{ dns_servers_proc | difference(name_servers) | list }}" <-- We then pass this new variable to the jinja2 difference filter comparing it to the name servers we configured and stripping out the ones that are configured. This output of these extra servers is then saved to extra_dns_srvs variable.
+
+    - debug:
+        var: extra_dns_srvs <-- here we print out the extra DNS servers
+
+    - debug:
+        msg: DNS Servers are correct
+      when: extra_dns_srvs == [] <-- When the extra_dns_servs list is blank we print out a message saying that the DNS servers are correct
+
+    - name: Remove extra DNS Servers
+      ios_config:
+        provider: "{{ creds_core_ssh }}"
+        lines: "no {{ item }}"
+      with_items: "{{ extra_dns_srvs }}" <-- if extra dns servers has anything in the list we iterate through the list and add the above no before each line when we push that to the device
+
+    - name: Test ping
+      ios_command:
+        provider: "{{ creds_core_ssh }}"
+        commands: ping google.com <-- here we ping google.com 
+      register: ping_output <-- and we save the output using the variable ping_output
+
+    - name: PING successful using DNS name
+      debug:
+        msg: PING successful
+      when: "'!!!!' in ping_output.stdout[0]" <-- When there are four bangs in a row we print that the ping is succsesfull. 
+
+    - name: PING failed using DNS name
+      debug:
+        var: ping_output
+      #failed_when: "'!!!!' not in ping_output.stdout[0]" <-- THis would cause the entire playbook to fail if the pings do not come back succsesfully. 
+      when: "'!!!!' not in ping_output.stdout[0]" <-- When we do not have the bangs in our output we print that the ping is not succsesfull. 

@@ -1,0 +1,33 @@
+!Ansible vault can be used to encrypt things that you want to keep confidential. A perfect example is you do not want to keep your passwords as plain text in a file. You can use ansibles dynamic inventory to grab the data from an external database. Ansible vault can also be used to encrypt sensitive information in the yaml file. You typically do not encrypt the sensitive information and will just encrypt the sensitive info.
+
+!To encrypt something using ansible-vault
+
+ansible-vault encrypt providers.yml "Where providers.yml is the file that is encrypted" 
+
+This will ask you for a password. You must use the same password for all of the files that you encrypt with ansible-vault
+
+!If you encrypt the provider info for example in group_vars and try and run the playbook you will get a decryption error. What you can do to run the playbook is
+
+ansible-playbook vault_test.yml --ask-vault-pass
+
+!If you want to edit the file can you can do
+
+ansible-vault edit providers.yml
+
+!You can also try 
+
+ansible-vault decrypt providers.yml
+
+!You can also choose to write a file that will be encrypted immediatly using
+
+ansible-vault create providers.yml
+
+!If you wanted to automatically run a playbook using something like a cron job you would run into an issue if the playbook is using vault because it forces you to use the --ask-vault-pass to execute. Alternatively what you can do is provide it a file that has it encrypted. This may seem like it does not make any sense but with your playbook it may be stored publically and the vault_pass locally so it would help with people being able to see it. Also you can store the file with an obscure name and in a obscure location. 
+
+ansible-playbook vault_test.yml --vault-password-file .vault_pass.txt
+
+!This file would have the password unencrypted
+
+--- .vault_pass.txt
+
+test123
